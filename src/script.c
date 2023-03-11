@@ -169,12 +169,18 @@ void script_response(lua_State *L, int status, buffer *headers, buffer *body) {
     lua_pushinteger(L, status);
     lua_newtable(L);
 
+    // printf("response,status:%d,headers:",status);
+
     for (char *c = headers->buffer; c < headers->cursor; ) {
+        // key
+        // printf(" %s",c);
         c = buffer_pushlstring(L, c);
+        // value
+        // printf(": %s",c);
         c = buffer_pushlstring(L, c);
         lua_rawset(L, -3);
     }
-
+    // printf(" body size:%ld\n",body->cursor - body->buffer);
     lua_pushlstring(L, body->buffer, body->cursor - body->buffer);
     lua_call(L, 3, 0);
 

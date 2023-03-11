@@ -259,14 +259,28 @@ static int connect_socket(thread *thread, connection *c) {
 
   error:
     thread->errors.connect++;
+    // printf("connection:%p,fd:%d, close in connect\n", c,c->fd);
     close(fd);
     return -1;
 }
 
 static int reconnect_socket(thread *thread, connection *c) {
     aeDeleteFileEvent(thread->loop, c->fd, AE_WRITABLE | AE_READABLE);
+    // printf("connection:%p,close in reconnect\n", c);
     sock.close(c);
     close(c->fd);
+    // do some reset work to connection
+    http_parser_init(&c->parser, HTTP_RESPONSE);
+
+    c->state = FIELD;
+
+    // reset buffer
+    c->headers.cursor = c->headers.buffer;
+    memset(c->headers.buffer, 0, c->headers.length);
+
+    // reset buffer
+    c->body.cursor = c->body.buffer;
+    memset(c->body.buffer, 0, c->body.length);
     return connect_socket(thread, c);
 }
 
@@ -301,6 +315,11 @@ static int header_field(http_parser *parser, const char *at, size_t len) {
         *c->headers.cursor++ = '\0';
         c->state = FIELD;
     }
+    // char field[len + 1];
+    // memset(field, 0, len+1);
+    // memcpy(field, at, len);
+
+    // printf("connection:%p fd:%d,header_field:%s\n",c,c->fd ,field);
     buffer_append(&c->headers, at, len);
     return 0;
 }
@@ -311,6 +330,11 @@ static int header_value(http_parser *parser, const char *at, size_t len) {
         *c->headers.cursor++ = '\0';
         c->state = VALUE;
     }
+    // char value[len + 1];
+    // memset(value, 0, len+1);
+    // memcpy(value, at, len);
+
+    // printf("connection:%p,fd:%d, header_value:%s\n", c,c->fd,value);
     buffer_append(&c->headers, at, len);
     return 0;
 }
@@ -356,6 +380,7 @@ static int response_complete(http_parser *parser) {
     http_parser_init(parser, HTTP_RESPONSE);
 
   done:
+    // printf("connection:%p,fd:%d,complete\n",c,c->fd);
     return 0;
 }
 
@@ -374,6 +399,7 @@ static void socket_connected(aeEventLoop *loop, int fd, void *data, int mask) {
     aeCreateFileEvent(c->thread->loop, fd, AE_READABLE, socket_readable, c);
     aeCreateFileEvent(c->thread->loop, fd, AE_WRITABLE, socket_writeable, c);
 
+    // printf("connection:%p,fd:%d,connected\n",c,c->fd);
     return;
 
   error:
